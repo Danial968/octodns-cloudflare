@@ -1,0 +1,19 @@
+.changelog/17c9df6c450548239c52ca81803fcb4f.md
+  s_903c8a73c11b3a::t_8f850b31a2f7e3 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8be9a047046445c84414a72a91a594c6b7ccd330",
+  "prompts": {},
+  "sessions": {
+    "s_903c8a73c11b3a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fa5928490ffe1NGIvp8wRpM305",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Danial Ang <danial@cloudflare.com>"
+    }
+  }
+}
