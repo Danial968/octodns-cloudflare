@@ -1,0 +1,19 @@
+tests/test_octodns_provider_cloudflare.py
+  s_903c8a73c11b3a::t_993663b19c471f 2841-2865
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "65585f2a5718041123010649ec33a88313560129",
+  "prompts": {},
+  "sessions": {
+    "s_903c8a73c11b3a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fa5928490ffe1NGIvp8wRpM305",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Danial Ang <danial@cloudflare.com>"
+    }
+  }
+}
