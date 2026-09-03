@@ -633,12 +633,7 @@ class CloudflareProvider(BaseProvider):
         # Cloudflare has it enabled so absent/false stays noise-free.
         # The flatten_cname argument lives in the settings field.
         # https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/create/#(resource)%20dns.records%20%3E%20(model)%20cname_record%20%3E%20(schema)%20%3E%20(property)%20settings
-        if (
-            self._supports_flatten_cname
-            and _type == 'CNAME'
-            and name != ''
-            and not proxied
-        ):
+        if self._supports_flatten_cname and _type == 'CNAME' and not proxied:
             settings = records[0].get('settings')
             if isinstance(settings, dict) and settings.get('flatten_cname'):
                 try:
@@ -757,28 +752,15 @@ class CloudflareProvider(BaseProvider):
             new_is_proxied = self._record_is_proxied(new)
             new_is_just_auto_ttl = self._record_is_just_auto_ttl(new)
             new_is_urlfwd = new._type == 'URLFWD'
-            new_flatten_cname = self._record_flatten_cname(new)
-            new = new.data
 
             existing = change.existing
             existing_is_proxied = self._record_is_proxied(existing)
             existing_is_just_auto_ttl = self._record_is_just_auto_ttl(existing)
             existing_is_urlfwd = existing._type == 'URLFWD'
-            existing_flatten_cname = self._record_flatten_cname(existing)
-            existing = existing.data
+            flatten_cname_differs = self._flatten_cname_differs(existing, new)
 
-            # flatten_cname is tri-state: None means unmanaged (preserve the
-            # API state), True/False means explicitly managed. Only compare when
-            # the desired record has an explicit value.
-            # state:
-            # New None: unmanaged, ignore differences.
-            # New True, existing False/None: enable it.
-            # New False, existing True: disable it.
-            # Matching values: no update.
-            flatten_cname_differs = (
-                new_flatten_cname is not None
-                and new_flatten_cname != (existing_flatten_cname is True)
-            )
+            new = new.data
+            existing = existing.data
 
             if (
                 (new_is_proxied != existing_is_proxied)
@@ -1173,6 +1155,17 @@ class CloudflareProvider(BaseProvider):
             return flatten_cname
         return None
 
+    def _flatten_cname_differs(self, existing, desired):
+        '''Whether desired explicitly changes existing CNAME flattening.
+
+        A missing desired value is unmanaged. Existing None and False both
+        represent disabled when compared with an explicit desired value.
+        '''
+        desired_flatten_cname = self._record_flatten_cname(desired)
+        return desired_flatten_cname is not None and desired_flatten_cname != (
+            self._record_flatten_cname(existing) is True
+        )
+
     def _values_in_content_order(self, record):
         '''The record's value objects, parallel to _contents_for_<type>()
         output. Single-value (ValueMixin) types expose .value; multi-value
@@ -1355,8 +1348,6 @@ class CloudflareProvider(BaseProvider):
     def _gen_data(self, record):
         name = record.fqdn[:-1]
         _type = record._type
-        # type can get converted from ALIAS later. Preserving to know original type.
-        original_type = _type
         proxied = self._record_is_proxied(record)
         if proxied or self._record_is_just_auto_ttl(record):
             # proxied implies auto-ttl, and auto-ttl can be enabled on its own,
@@ -1390,12 +1381,7 @@ class CloudflareProvider(BaseProvider):
                     content.update({'proxied': self._record_is_proxied(record)})
 
                 flatten_cname = self._record_flatten_cname(record)
-                if (
-                    self._supports_flatten_cname
-                    and original_type == 'CNAME'
-                    and not proxied
-                    and flatten_cname is not None
-                ):
+                if flatten_cname is not None:
                     content.update(
                         {'settings': {'flatten_cname': flatten_cname}}
                     )
@@ -1638,7 +1624,8 @@ class CloudflareProvider(BaseProvider):
         for key, data in new.items():
             if key in existing:
                 # To update we need to combine the new data and existing's
-                # record_id. old_data is just for debugging/logging purposes
+                # record_id. old_data supports logging and preserves unmanaged
+                # settings during PUT updates.
                 old_info = existing[key]
                 updates[key] = {
                     'record_id': old_info['record_id'],
@@ -1901,13 +1888,6 @@ class CloudflareProvider(BaseProvider):
             elif desired_record in changed_records:  # Already being updated
                 continue
 
-            existing_flatten_cname = self._record_flatten_cname(existing_record)
-            desired_flatten_cname = self._record_flatten_cname(desired_record)
-            flatten_cname_differs = (
-                desired_flatten_cname is not None
-                and desired_flatten_cname != (existing_flatten_cname is True)
-            )
-
             if (
                 (
                     self._record_is_proxied(existing_record)
@@ -1917,7 +1897,7 @@ class CloudflareProvider(BaseProvider):
                     self._record_is_just_auto_ttl(existing_record)
                     != self._record_is_just_auto_ttl(desired_record)
                 )
-                or flatten_cname_differs
+                or self._flatten_cname_differs(existing_record, desired_record)
             ):
                 extra_changes.append(Update(existing_record, desired_record))
 

@@ -2830,8 +2830,6 @@ class TestCloudflareProvider(TestCase):
         self.assertTrue(
             provider._include_change(Update(unflattened, flattened))
         )
-        # Absent desired value leaves the API state unmanaged: no churn.
-        self.assertFalse(provider._include_change(Update(flattened, plain)))
         self.assertFalse(provider._include_change(Update(plain, plain)))
         self.assertFalse(provider._include_change(Update(flattened, flattened)))
         self.assertFalse(
@@ -2839,6 +2837,31 @@ class TestCloudflareProvider(TestCase):
         )
         self.assertFalse(provider._include_change(Update(unflattened, plain)))
         self.assertFalse(provider._include_change(Update(plain, unflattened)))
+
+    def test_include_change_ignores_unmanaged_flatten_cname(self):
+        provider = CloudflareProvider('test', 'email', 'token')
+
+        zone = Zone('unit.tests.', [])
+        existing = set_record_flatten_cname_flag(
+            Record.new(
+                zone,
+                'cname',
+                {'ttl': 300, 'type': 'CNAME', 'value': 'www.unit.tests.'},
+            ),
+            True,
+        )
+        desired = Record.new(
+            zone,
+            'cname',
+            {'ttl': 300, 'type': 'CNAME', 'value': 'www.unit.tests.'},
+        )
+
+        # Existing has Cloudflare metadata while desired has no octodns key.
+        # Removing that metadata must not leave an empty dict that creates a
+        # false content difference for the unmanaged desired setting.
+        self.assertTrue(existing.data['octodns']['cloudflare']['flatten_cname'])
+        self.assertNotIn('octodns', desired.data)
+        self.assertFalse(provider._include_change(Update(existing, desired)))
 
     def test_include_change_preserves_other_octodns_keys(self):
         provider = CloudflareProvider('test', 'email', 'token')
